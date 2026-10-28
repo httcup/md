@@ -119,14 +119,16 @@
     return (base || '未命名笔记') + '-' + ts + '.md';
   }
 
-  /* 识别「备份全部」生成的合并文件，按 --- 分隔符拆回多本笔记 */
-  function splitBackup(name, text) {
-    if (!/^笔记备份-.*\.md$/.test(name)) return null;
-    var parts = text.replace(/^\uFEFF/, '')
-      .split(/\r?\n\r?\n-{3,}\r?\n\r?\n/)
+  /* 每本笔记前的分隔标记：HTML 注释在 Markdown 里不可见，正文里写 --- 不会误切 */
+  var NOTE_MARK = '<!-- mdnotes-note -->';
+
+  /* 识别「备份全部」生成的合并文件，只按 NOTE_MARK 标记拆分，不做 --- 兜底 */
+  function splitBackup(text) {
+    var t = String(text || '').replace(/^\uFEFF/, '');
+    if (t.indexOf(NOTE_MARK) === -1) return null;
+    var parts = t.split(NOTE_MARK)
       .map(function (s) { return s.replace(/^\s+|\s+$/g, ''); })
       .filter(Boolean);
-    if (parts.length <= 1) return null;
     return parts.map(function (part) {
       var m = part.match(/^#\s+(.+)/);
       if (m) {
@@ -373,7 +375,8 @@
     });
     var d = new Date();
     var name = '笔记备份-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.md';
-    download(name, parts.join('\n\n---\n\n') + '\n');
+    /* 文件头也放一个标记，这样哪怕只备份了一本也能正确拆分 */
+    download(name, [NOTE_MARK].concat(parts).join('\n\n' + NOTE_MARK + '\n\n') + '\n');
     toast('已备份 ' + data.notes.length + ' 本笔记');
   }
 
@@ -420,8 +423,8 @@
     Promise.all(list.map(function (f) {
       return readFile(f).then(function (text) {
         var name = f.name || '未命名.md';
-        /* 备份文件（笔记备份-*.md）先拆回多本笔记 */
-        var split = splitBackup(name, text);
+        /* 备份文件（含 NOTE_MARK 标记）先拆回多本笔记 */
+        var split = splitBackup(text);
         if (split && split.length) {
           return split.map(function (p) {
             return {
