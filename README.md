@@ -1,4 +1,4 @@
-# 小胡的笔记本 MarkDownPad
+# 随手记存为.md
 
 零依赖、纯本地运行的 Markdown 笔记本。
 
