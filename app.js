@@ -17,11 +17,18 @@
   var splitEl = $('split');
   var qEl = $('q');
   var toastEl = $('toast');
+  var usageEl = $('usage');
+  var pinBtn = $('pin');
+  var trashBtn = $('trashBtn');
+  var trashOpsEl = $('trashOps');
 
-  var data = { notes: [], cur: null };
+  var data = { notes: [], trash: [], cur: null };
+  var trashMode = false;
   var saveTimer = null;
   var listTimer = null;
   var toastTimer = null;
+
+  var TRASH_DAYS = 30;
 
   var WELCOME = [
     '# 欢迎，这是一块本地记事板',
@@ -44,7 +51,7 @@
     '| 引用 | `> 引用` |',
     '| 链接 | `[名字](https://example.com)` |',
     '',
-    '> 「下载 .md」把当前这本存成文件，「备份全部」把所有笔记合成一份。',
+    '> 「下载 .md」存当前这本，「备份 JSON」能原样备份和恢复，删除的笔记在「回收站」躺 30 天。',
     '',
     '```js',
     "// 代码块原样保留",
@@ -75,7 +82,12 @@
   }
 
   function sorted() {
-    return data.notes.slice().sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
+    return data.notes.slice().sort(function (a, b) {
+      var pa = a.pinned ? 1 : 0;
+      var pb = b.pinned ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      return (b.updated || 0) - (a.updated || 0);
+    });
   }
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -149,6 +161,24 @@
     stateEl.textContent = text;
   }
 
+  /* 状态栏显示存储占用（localStorage 上限约 5MB），超过八成变红提醒 */
+  function updateUsage() {
+    if (!usageEl) return;
+    var s = '';
+    try {
+      s = JSON.stringify({ v: 1, cur: data.cur, notes: data.notes, trash: data.trash });
+    } catch (e) { return; }
+    var bytes;
+    try { bytes = new Blob([s]).size; } catch (e) { bytes = s.length; }
+    var quota = 5 * 1024 * 1024;
+    var pct = bytes / quota;
+    var label = bytes < 1024 ? bytes + ' B'
+      : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB'
+      : (bytes / 1048576).toFixed(2) + ' MB';
+    usageEl.textContent = '存储 ' + label + (pct > 0.6 ? ' · 快满了，记得备份' : '');
+    usageEl.classList.toggle('is-warn', pct > 0.8);
+  }
+
   /* ---------- 存取 ---------- */
 
   function seed() {
@@ -162,6 +192,17 @@
     data.cur = data.notes[0].id;
   }
 
+  function normalizeNote(n) {
+    return {
+      id: String(n.id),
+      title: String(n.title || ''),
+      body: String(n.body || ''),
+      created: +n.created || Date.now(),
+      updated: +n.updated || Date.now(),
+      pinned: !!n.pinned
+    };
+  }
+
   function load() {
     var raw = null;
     try { raw = localStorage.getItem(KEY); } catch (e) { raw = null; }
@@ -169,34 +210,44 @@
     if (raw) {
       try {
         var saved = JSON.parse(raw);
-        if (saved && saved.notes && saved.notes.length) {
+        if (saved && Array.isArray(saved.notes) && saved.notes.length) {
           data.notes = saved.notes.filter(function (n) {
             return n && typeof n.id === 'string';
-          }).map(function (n) {
-            return {
-              id: n.id,
-              title: String(n.title || ''),
-              body: String(n.body || ''),
-              created: n.created || Date.now(),
-              updated: n.updated || Date.now()
-            };
-          });
+          }).map(normalizeNote);
           data.cur = saved.cur;
+        }
+        if (saved && Array.isArray(saved.trash)) {
+          data.trash = saved.trash.filter(function (n) {
+            return n && typeof n.id === 'string';
+          }).map(function (n) {
+            var m = normalizeNote(n);
+            m.deletedAt = +n.deletedAt || Date.now();
+            return m;
+          });
         }
       } catch (e) { /* 坏数据就当作空，不覆盖用户历史 */ }
     }
 
+    purgeOldTrash();
     if (!data.notes.length) seed();
     if (!find(data.cur)) data.cur = sorted()[0].id;
   }
 
+  /* 回收站里超过 30 天的自动清掉 */
+  function purgeOldTrash() {
+    var cutoff = Date.now() - TRASH_DAYS * 24 * 3600 * 1000;
+    var keep = data.trash.filter(function (n) { return (n.deletedAt || 0) >= cutoff; });
+    if (keep.length !== data.trash.length) data.trash = keep;
+  }
+
   function persist() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: 1, cur: data.cur, notes: data.notes }));
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, cur: data.cur, notes: data.notes, trash: data.trash }));
       setState('已保存 ' + clock(Date.now()));
+      updateUsage();
     } catch (e) {
       setState('无法保存');
-      toast('浏览器拒绝了本地存储，记得下载 .md 留一份');
+      toast('浏览器拒绝了本地存储，记得「备份 JSON」留一份');
     }
   }
 
@@ -224,6 +275,59 @@
     listEl.textContent = '';
     var shown = 0;
 
+    if (trashMode) {
+      data.trash.slice().sort(function (a, b) { return (b.deletedAt || 0) - (a.deletedAt || 0); })
+        .forEach(function (n) {
+          if (q) {
+            var hay = (n.title + ' ' + n.body).toLowerCase();
+            if (hay.indexOf(q) === -1) return;
+          }
+          shown++;
+
+          var li = document.createElement('li');
+          var item = document.createElement('div');
+          item.className = 'nb-note nb-trash-item';
+
+          var t = document.createElement('span');
+          t.className = 'nb-note-t';
+          t.textContent = derivedTitle(n);
+
+          var m = document.createElement('span');
+          m.className = 'nb-note-m';
+          m.textContent = countChars(n.body) + ' 字 · ' + stamp(n.deletedAt) + ' 删除';
+
+          var ops = document.createElement('span');
+          ops.className = 'nb-trash-ops';
+          var restoreBtn = document.createElement('button');
+          restoreBtn.type = 'button';
+          restoreBtn.textContent = '恢复';
+          restoreBtn.dataset.restore = n.id;
+          var purgeBtn = document.createElement('button');
+          purgeBtn.type = 'button';
+          purgeBtn.textContent = '彻底删除';
+          purgeBtn.dataset.purge = n.id;
+          ops.appendChild(restoreBtn);
+          ops.appendChild(purgeBtn);
+
+          item.appendChild(t);
+          item.appendChild(m);
+          item.appendChild(ops);
+          li.appendChild(item);
+          listEl.appendChild(li);
+        });
+
+      emptyEl.hidden = shown > 0;
+      emptyEl.textContent = q ? '回收站里没有匹配「' + qEl.value.trim() + '」的笔记' : '回收站是空的';
+      if (trashOpsEl) trashOpsEl.hidden = data.trash.length === 0;
+      if (trashBtn) trashBtn.textContent = '返回笔记';
+      return;
+    }
+
+    if (trashOpsEl) trashOpsEl.hidden = true;
+    if (trashBtn) {
+      trashBtn.textContent = data.trash.length ? '回收站（' + data.trash.length + '）' : '回收站';
+    }
+
     sorted().forEach(function (n) {
       if (q) {
         var hay = (n.title + ' ' + n.body).toLowerCase();
@@ -237,10 +341,11 @@
       btn.className = 'nb-note';
       btn.dataset.id = n.id;
       btn.setAttribute('aria-current', n.id === data.cur ? 'true' : 'false');
+      btn.title = '点击打开 · 右键复制一份';
 
       var t = document.createElement('span');
       t.className = 'nb-note-t';
-      t.textContent = derivedTitle(n);
+      t.textContent = (n.pinned ? '📌 ' : '') + derivedTitle(n);
 
       var m = document.createElement('span');
       m.className = 'nb-note-m';
@@ -288,6 +393,7 @@
     srcEl.value = n.body;
     renderPreview();
     updateStat();
+    if (pinBtn) pinBtn.setAttribute('aria-pressed', String(!!n.pinned));
     srcEl.scrollTop = 0;
     if (readEl) readEl.scrollTop = 0;
     renderList();
@@ -304,7 +410,7 @@
       var end = srcEl.value.length;
       srcEl.setSelectionRange(end, end);
     }
-    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, cur: data.cur, notes: data.notes })); } catch (e) {}
+    persist();
   }
 
   function newNote() {
@@ -327,20 +433,91 @@
   function removeNote() {
     var n = cur();
     if (!n) return;
-    if (data.notes.length <= 1) {
-      toast('至少留一本笔记；想清空内容可以全选删掉');
-      return;
-    }
-    if (!window.confirm('删除「' + derivedTitle(n) + '」？删掉就找不回来了。')) return;
+    flush();
 
     var order = sorted();
     var idx = order.findIndex(function (x) { return x.id === n.id; });
+    n.deletedAt = Date.now();
     data.notes = data.notes.filter(function (x) { return x.id !== n.id; });
-    var next = order[idx + 1] || order[idx - 1] || data.notes[0];
+    data.trash.push(n);
+
+    if (!data.notes.length) {
+      newNote();
+      toast('已移入回收站，30 天内可在「回收站」找回');
+      return;
+    }
+    var next = order[idx + 1] || order[idx - 1];
     data.cur = next.id;
     paint();
     persist();
-    toast('已删除');
+    toast('已移入回收站，30 天内可找回');
+  }
+
+  function restoreNote(id) {
+    var i = data.trash.findIndex(function (x) { return x.id === id; });
+    if (i === -1) return;
+    var n = data.trash.splice(i, 1)[0];
+    delete n.deletedAt;
+    data.notes.push(n);
+    if (trashMode) {
+      trashMode = false;
+      if (trashBtn) trashBtn.setAttribute('aria-pressed', 'false');
+    }
+    data.cur = n.id;
+    qEl.value = '';
+    paint();
+    persist();
+    toast('已恢复「' + derivedTitle(n) + '」');
+  }
+
+  function purgeNote(id) {
+    var n = null;
+    for (var i = 0; i < data.trash.length; i++) {
+      if (data.trash[i].id === id) { n = data.trash[i]; break; }
+    }
+    if (!n) return;
+    if (!window.confirm('彻底删除「' + derivedTitle(n) + '」？删掉就真的找不回来了。')) return;
+    data.trash = data.trash.filter(function (x) { return x.id !== id; });
+    renderList();
+    persist();
+    toast('已彻底删除');
+  }
+
+  function emptyTrash() {
+    if (!data.trash.length) { toast('回收站是空的'); return; }
+    if (!window.confirm('彻底删除回收站里的 ' + data.trash.length + ' 本笔记？删掉就真的找不回来了。')) return;
+    data.trash = [];
+    renderList();
+    persist();
+    toast('回收站已清空');
+  }
+
+  function togglePin() {
+    var n = cur();
+    if (!n) return;
+    n.pinned = !n.pinned;
+    paint();
+    persist();
+    toast(n.pinned ? '已置顶，会一直排在列表最上面' : '已取消置顶');
+  }
+
+  function duplicateNote(id) {
+    var n = find(id);
+    if (!n) return;
+    flush();
+    var copy = {
+      id: uid(),
+      title: n.title ? n.title + '（副本）' : '',
+      body: n.body,
+      created: Date.now(),
+      updated: Date.now(),
+      pinned: n.pinned
+    };
+    data.notes.push(copy);
+    data.cur = copy.id;
+    paint();
+    persist();
+    toast('已复制一份「' + derivedTitle(copy) + '」');
   }
 
   /* ---------- 导入导出 ---------- */
@@ -378,6 +555,55 @@
     /* 文件头也放一个标记，这样哪怕只备份了一本也能正确拆分 */
     download(name, [NOTE_MARK].concat(parts).join('\n\n' + NOTE_MARK + '\n\n') + '\n');
     toast('已备份 ' + data.notes.length + ' 本笔记');
+  }
+
+  /* JSON 备份：.md 给人看，JSON 负责机器原样还原（含创建/修改时间、置顶） */
+  function backupJSON() {
+    flush();
+    var payload = {
+      app: 'mdnotes',
+      v: 1,
+      exported: new Date().toISOString(),
+      notes: sorted().map(function (n) {
+        return {
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          created: n.created,
+          updated: n.updated,
+          pinned: !!n.pinned
+        };
+      })
+    };
+    var d = new Date();
+    var name = '笔记备份-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) +
+      '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
+    download(name, JSON.stringify(payload, null, 2));
+    toast('已备份 JSON（含时间，可原样恢复）');
+  }
+
+  /* 识别 JSON 备份文件，原样还原 id / 标题 / 时间 / 置顶 */
+  function restoreJSON(text) {
+    var t = String(text || '').replace(/^\uFEFF/, '').trim();
+    if (t.charAt(0) !== '{') return null;
+    var obj;
+    try { obj = JSON.parse(t); } catch (e) { return null; }
+    if (!obj || !Array.isArray(obj.notes)) return null;
+    var existing = {};
+    data.notes.forEach(function (n) { existing[n.id] = true; });
+    return obj.notes.filter(function (n) {
+      return n && typeof n.body === 'string';
+    }).map(function (n) {
+      var id = (n.id && typeof n.id === 'string' && !existing[n.id]) ? n.id : uid();
+      return {
+        id: id,
+        title: String(n.title || ''),
+        body: String(n.body || ''),
+        created: +n.created || Date.now(),
+        updated: +n.updated || Date.now(),
+        pinned: !!n.pinned
+      };
+    });
   }
 
   function copyCurrent() {
@@ -423,6 +649,9 @@
     Promise.all(list.map(function (f) {
       return readFile(f).then(function (text) {
         var name = f.name || '未命名.md';
+        /* JSON 备份原样还原（含时间、置顶） */
+        var restored = restoreJSON(text);
+        if (restored && restored.length) return restored;
         /* 备份文件（含 NOTE_MARK 标记）先拆回多本笔记 */
         var split = splitBackup(text);
         if (split && split.length) {
@@ -487,6 +716,63 @@
     srcEl.value = v.slice(0, s) + text + v.slice(e);
     var caret = s + text.length;
     srcEl.setSelectionRange(caret, caret);
+    srcEl.focus();
+    syncFromEditor();
+  }
+
+  /* 列表项识别：缩进 + 标记（- * + 或 1. 1)）+ 可选待办方括号 + 内容 */
+  var LIST_PREFIX = /^([ \t]*)([-*+]|(\d+)([.)]))([ \t]+)(\[[ xX]\][ \t]+)?(.*)$/;
+
+  function lineAt(v, caret) {
+    var start = v.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
+    var end = v.indexOf('\n', caret);
+    if (end === -1) end = v.length;
+    return { start: start, end: end, text: v.slice(start, caret) };
+  }
+
+  /* 回车自动续列表：在列表项末尾回车补上前缀；空前缀行回车则退出列表 */
+  function continueList() {
+    var s = srcEl.selectionStart;
+    var epos = srcEl.selectionEnd;
+    if (s !== epos) return false;
+    var v = srcEl.value;
+    var line = lineAt(v, s);
+    var m = LIST_PREFIX.exec(line.text);
+    if (!m) return false;
+    var content = m[7] || '';
+
+    if (!content.trim() && s === line.end) {
+      /* 整行只有前缀（光标在行尾）：清掉它，退出列表 */
+      srcEl.value = v.slice(0, line.start) + m[1] + v.slice(line.end);
+      var caretOut = line.start + m[1].length;
+      srcEl.setSelectionRange(caretOut, caretOut);
+      srcEl.focus();
+      syncFromEditor();
+      return true;
+    }
+
+    var marker = m[3] ? (parseInt(m[3], 10) + 1) + m[4] : m[2];
+    var task = m[6] ? '[ ] ' : '';
+    insertAtCaret('\n' + m[1] + marker + ' ' + task);
+    return true;
+  }
+
+  /* Tab / Shift+Tab：多行或列表行整体缩进 / 反缩进两个空格 */
+  function indentBlock(outdent) {
+    var s = srcEl.selectionStart;
+    var epos = srcEl.selectionEnd;
+    var v = srcEl.value;
+    var start = v.lastIndexOf('\n', Math.max(0, s - 1)) + 1;
+    var end = v.indexOf('\n', epos);
+    if (end === -1) end = v.length;
+    var block = v.slice(start, end);
+    var lines = block.split('\n').map(function (l) {
+      return outdent ? l.replace(/^[ \t]{1,2}/, '') : '  ' + l;
+    });
+    var out = lines.join('\n');
+    srcEl.value = v.slice(0, start) + out + v.slice(end);
+    var delta = out.length - block.length;
+    srcEl.setSelectionRange(Math.max(start, s + delta), Math.max(start, epos + delta));
     srcEl.focus();
     syncFromEditor();
   }
@@ -586,8 +872,21 @@
   /* ---------- 事件绑定 ---------- */
 
   listEl.addEventListener('click', function (e) {
+    var r = e.target.closest('button[data-restore]');
+    if (r) { restoreNote(r.dataset.restore); return; }
+    var p = e.target.closest('button[data-purge]');
+    if (p) { purgeNote(p.dataset.purge); return; }
+    if (trashMode) return;
     var btn = e.target.closest('.nb-note');
     if (btn) select(btn.dataset.id, false);
+  });
+
+  /* 列表里右键（手机长按）复制一份 */
+  listEl.addEventListener('contextmenu', function (e) {
+    var btn = e.target.closest('.nb-note');
+    if (!btn || trashMode) return;
+    e.preventDefault();
+    duplicateNote(btn.dataset.id);
   });
 
   titleEl.addEventListener('input', function () {
@@ -616,9 +915,20 @@
     if (meta && key === 'i') { e.preventDefault(); TOOLBAR.italic(); return; }
     if (meta && key === 'k') { e.preventDefault(); linkFromSelection(); return; }
 
+    if (e.key === 'Enter' && !e.shiftKey && !meta && !e.altKey) {
+      if (continueList()) { e.preventDefault(); return; }
+    }
+
     if (e.key === 'Tab') {
       e.preventDefault();
-      insertAtCaret('  ');
+      if (e.shiftKey) {
+        indentBlock(true);
+      } else if (srcEl.selectionStart !== srcEl.selectionEnd ||
+          LIST_PREFIX.test(lineAt(srcEl.value, srcEl.selectionStart).text)) {
+        indentBlock(false);
+      } else {
+        insertAtCaret('  ');
+      }
     }
   });
 
@@ -642,6 +952,18 @@
   $('copy').addEventListener('click', copyCurrent);
   $('remove').addEventListener('click', removeNote);
   $('exportAll').addEventListener('click', backupAll);
+  if (pinBtn) pinBtn.addEventListener('click', togglePin);
+  var exportJsonBtn = $('exportJson');
+  if (exportJsonBtn) exportJsonBtn.addEventListener('click', backupJSON);
+  if (trashBtn) {
+    trashBtn.addEventListener('click', function () {
+      trashMode = !trashMode;
+      trashBtn.setAttribute('aria-pressed', String(trashMode));
+      renderList();
+    });
+  }
+  var emptyTrashBtn = $('emptyTrash');
+  if (emptyTrashBtn) emptyTrashBtn.addEventListener('click', emptyTrash);
   $('importBtn').addEventListener('click', function () { $('file').click(); });
   $('file').addEventListener('change', function (e) {
     importFiles(e.target.files);
@@ -662,8 +984,37 @@
     });
   });
 
+  /* 双标签页同步：另一个标签页写入时，把它的数据接过来，避免互相覆盖 */
+  window.addEventListener('storage', function (e) {
+    if (e.key !== KEY || !e.newValue) return;
+    var remote = null;
+    try { remote = JSON.parse(e.newValue); } catch (err) { return; }
+    if (!remote || !Array.isArray(remote.notes)) return;
+
+    /* 本地有还没落盘的修改时以最后写入的为准：放弃本地待存内容，接住远端 */
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    data.notes = remote.notes.filter(function (n) {
+      return n && typeof n.id === 'string';
+    }).map(normalizeNote);
+    data.trash = (Array.isArray(remote.trash) ? remote.trash : []).filter(function (n) {
+      return n && typeof n.id === 'string';
+    }).map(function (n) {
+      var m = normalizeNote(n);
+      m.deletedAt = +n.deletedAt || Date.now();
+      return m;
+    });
+    if (!data.notes.length) seed();
+    if (!find(data.cur)) data.cur = sorted()[0].id;
+    trashMode = false;
+    if (trashBtn) trashBtn.setAttribute('aria-pressed', 'false');
+    paint();
+  });
+
   window.addEventListener('beforeunload', function () {
-    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, cur: data.cur, notes: data.notes })); } catch (e) {}
+    persist();
   });
 
   /* ---------- 启动 ---------- */
@@ -671,5 +1022,6 @@
   load();
   paint();
   applyUi();
+  updateUsage();
   if (!data.notes.length) newNote();
 })();

@@ -159,6 +159,7 @@ footer { max-width: 1180px; }
 
 .nb-side-foot {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.3rem;
   padding: 0.45rem 0.55rem;
   border-top: 1px solid var(--border);
@@ -620,3 +621,44 @@ footer { max-width: 1180px; }
   .nb-actions { order: 2; margin-inline-start: auto; }
   .nb-split { height: 58vh; }
 }
+
+/* ---------- 置顶 / 回收站 / 存储容量 ---------- */
+
+.btn-pin[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nb-trash-item { cursor: default; }
+.nb-trash-item:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+
+.nb-trash-ops {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.nb-trash-ops button {
+  min-height: 26px;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.nb-trash-ops button:hover { border-color: var(--accent); color: var(--accent); }
+.nb-trash-ops button[data-purge]:hover { border-color: #d94a4a; color: #d94a4a; }
+
+.nb-usage {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.nb-usage.is-warn { color: #d94a4a; }

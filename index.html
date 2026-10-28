@@ -59,7 +59,12 @@
       <div class="nb-side-foot">
         <button class="nb-ghost" id="importBtn" type="button">导入 .md</button>
         <button class="nb-ghost" id="exportAll" type="button">备份全部</button>
-        <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden>
+        <button class="nb-ghost" id="exportJson" type="button" title="含标题、时间、置顶，导入时原样恢复">备份 JSON</button>
+        <button class="nb-ghost" id="trashBtn" type="button" aria-pressed="false">回收站</button>
+        <input id="file" type="file" accept=".md,.markdown,.txt,.json,text/markdown,text/plain,application/json" multiple hidden>
+      </div>
+      <div class="nb-side-foot" id="trashOps" hidden>
+        <button class="nb-ghost" id="emptyTrash" type="button">清空回收站</button>
       </div>
     </aside>
 
@@ -77,6 +82,7 @@
         <input id="title" class="nb-title" placeholder="无标题笔记" aria-label="笔记标题" autocomplete="off" spellcheck="false">
         <span class="nb-state" id="state" aria-live="polite">已保存</span>
         <div class="nb-actions">
+          <button class="btn btn-pin" id="pin" type="button" aria-pressed="false" title="置顶这本笔记，会一直排在列表最上面">置顶</button>
           <button class="btn btn-primary" id="download" type="button">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/></svg>
             下载 .md
@@ -123,6 +129,7 @@
 
       <div class="nb-status">
         <span id="stat">0 字 · 1 行</span>
+        <span class="nb-usage" id="usage" title="笔记占用的浏览器存储空间（上限约 5MB），满了会存不下，记得备份 JSON"></span>
         <span class="nb-hint">⌘/Ctrl + S 保存 · Tab 缩进 · 笔记只存在这台设备</span>
       </div>
     </section>
