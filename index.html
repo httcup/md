@@ -30,6 +30,9 @@
   <div class="head-row">
     <p class="brand">📓 随手记存为.md</p>
     <div class="head-actions">
+      <button class="icon-link qr-open" id="qrOpen" type="button" title="手机上打开：显示本站二维码，手机扫一下就在手机上继续用" aria-haspopup="dialog" aria-controls="qrPanel">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3h7v7H3V3Zm2 2v3h3V5H5Zm9-2h7v7h-7V3Zm2 2v3h3V5h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Zm9-2h3v3h-3v-3Zm5 0h2v2h-2v-2Zm-5 5h2v2h-2v-2Zm3 0h4v2h-4v-2Zm2-3h2v2h-2v-2Z"/></svg>
+      </button>
       <a class="icon-link bookmarklet" title="点一下在 600×600 小窗打开笔记本（与当前域名共用笔记）；也可拖到书签栏随时唤起"
         href="javascript: (function(){ var u = /^(\/|\/md\/?|\/index\.html)$/.test(location.pathname) ? location.origin + location.pathname : 'https://httcup.github.io/md/'; window.open(u, 'window', 'width=600,height=600'); })()">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1Z"/></svg>
@@ -137,6 +140,18 @@
 
   <p class="nb-toast" id="toast" role="status" aria-live="polite" hidden></p>
 
+  <div class="nb-qr" id="qrPanel" hidden>
+    <div class="nb-qr-card" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+      <h2 id="qrTitle">手机上打开</h2>
+      <div class="nb-qr-code" id="qrCode"></div>
+      <p class="nb-qr-url" id="qrUrl"></p>
+      <p class="nb-qr-tip">手机扫一下就在手机上打开同一页。笔记只存在各自的浏览器里，电脑上的不会自动同步到手机——需要的话用「备份 JSON」导出来，在手机上导入。</p>
+      <div class="nb-qr-foot">
+        <button class="btn" id="qrClose" type="button">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <section class="facts" aria-label="处理方式">
     <article class="fact"><h2>只留在本机</h2><p>笔记写进浏览器的本地存储，没有账号、没有同步、没有任何请求发出。清理浏览器站点数据会把它们一起删掉，重要的内容记得点「下载 .md」留一份文件。</p></article>
     <article class="fact"><h2>打开就是 .md</h2><p>导出的就是纯文本 Markdown，不夹带样式和内嵌数据。Obsidian、Typora、VS Code、GitHub 都能直接打开，也能再导入回来接着改。</p></article>
@@ -149,6 +164,7 @@
 </footer>
 
 <script src="markdown.js"></script>
+<script src="qr.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

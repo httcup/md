@@ -869,6 +869,44 @@
     if (ui.prev) renderPreview();
   });
 
+  /* ---------- 手机上打开（二维码在本地算，不发任何请求） ---------- */
+
+  var qrPanel = $('qrPanel');
+  var qrCodeEl = $('qrCode');
+  var qrUrlEl = $('qrUrl');
+  var qrOpenBtn = $('qrOpen');
+  var qrCloseBtn = $('qrClose');
+
+  function openQr() {
+    if (!qrPanel) return;
+    var url = location.href.split('#')[0];
+    var svg = (window.MDQr && qrCodeEl) ? window.MDQr.svg(url, { margin: 3 }) : '';
+    if (qrCodeEl) qrCodeEl.innerHTML = svg;
+    if (qrUrlEl) {
+      qrUrlEl.textContent = svg ? url : '地址太长，二维码放不下，直接复制链接：' + url;
+    }
+    qrPanel.hidden = false;
+    if (qrCloseBtn) qrCloseBtn.focus();
+  }
+
+  function closeQr() {
+    if (!qrPanel || qrPanel.hidden) return;
+    qrPanel.hidden = true;
+    if (qrOpenBtn) qrOpenBtn.focus();
+  }
+
+  if (qrOpenBtn) qrOpenBtn.addEventListener('click', openQr);
+  if (qrCloseBtn) qrCloseBtn.addEventListener('click', closeQr);
+  if (qrPanel) {
+    qrPanel.addEventListener('click', function (e) {
+      if (e.target === qrPanel) closeQr();
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeQr();
+  });
+
   /* ---------- 事件绑定 ---------- */
 
   listEl.addEventListener('click', function (e) {
