@@ -30,9 +30,8 @@
   <div class="head-row">
     <p class="brand">📓 小胡的笔记本</p>
     <div class="head-actions">
-      <span class="bm-hint">把书签图标拖到书签栏，点一下就能在 600×600 小窗里随手记</span>
-      <a class="icon-link bookmarklet" title="把这个图标拖到书签栏，点一下即可在小窗口打开笔记本"
-        href="javascript: (function(){ window.open('https://httcup.github.io/md/', 'window', 'width=600,height=600'); })()">
+      <a class="icon-link bookmarklet" title="点一下在 600×600 小窗打开笔记本（与当前域名共用笔记）；也可拖到书签栏随时唤起"
+        href="javascript: (function(){ var u = /^(\/|\/md\/?|\/index\.html)$/.test(location.pathname) ? location.origin + location.pathname : 'https://httcup.github.io/md/'; window.open(u, 'window', 'width=600,height=600'); })()">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1Z"/></svg>
       </a>
     </div>
@@ -134,7 +133,7 @@
   <section class="facts" aria-label="处理方式">
     <article class="fact"><h2>只留在本机</h2><p>笔记写进浏览器的本地存储，没有账号、没有同步、没有任何请求发出。清理浏览器站点数据会把它们一起删掉，重要的内容记得点「下载 .md」留一份文件。</p></article>
     <article class="fact"><h2>打开就是 .md</h2><p>导出的就是纯文本 Markdown，不夹带样式和内嵌数据。Obsidian、Typora、VS Code、GitHub 都能直接打开，也能再导入回来接着改。</p></article>
-    <article class="fact"><h2>书签小窗</h2><p>把顶栏的书签图标拖到浏览器书签栏，之后在任何页面点一下这个书签，就会弹出 600×600 的小窗笔记本，随手记完关掉即可。小窗和主页面共用同一份笔记。</p></article>
+    <article class="fact"><h2>书签小窗</h2><p>点击顶栏的书签图标即可弹出 600×600 小窗笔记本，随手记完关掉即可；小窗与当前访问的域名一致，共用同一份笔记。也可以把这个图标拖到书签栏，之后随时唤起（在其他网站上点书签时会打开官方地址）。</p></article>
   </section>
 </main>
 

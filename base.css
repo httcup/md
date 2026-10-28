@@ -82,8 +82,6 @@ body {
 .icon-link svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
 .icon-link.bookmarklet svg { width: 1.05rem; height: 1.05rem; }
 
-.bm-hint { font-size: 0.82rem; color: var(--text-dim); }
-
 .hub-head h1 {
   margin: 0;
   font-size: clamp(1.6rem, 1.15rem + 2vw, 2.25rem);
@@ -164,7 +162,6 @@ footer a:hover { text-decoration: underline; }
 @media (max-width: 900px) {
   .hub-head { padding: 1.4rem 0 0.25rem; }
   .lede { display: none; }
-  .bm-hint { display: none; }
   footer { margin-top: 1.5rem; padding-top: 1rem; }
   .facts { display: none; }
 }
