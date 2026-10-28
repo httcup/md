@@ -10,6 +10,7 @@
   var titleEl = $('title');
   var srcEl = $('src');
   var prevEl = $('prev');
+  var readEl = document.querySelector('.nb-read');
   var prevEmpty = $('prevEmpty');
   var stateEl = $('state');
   var statEl = $('stat');
@@ -264,6 +265,8 @@
     srcEl.value = n.body;
     renderPreview();
     updateStat();
+    srcEl.scrollTop = 0;
+    if (readEl) readEl.scrollTop = 0;
     renderList();
     setState('已保存 ' + clock(n.updated));
   }
@@ -426,7 +429,16 @@
     markDirty();
     renderPreview();
     updateStat();
+    syncScroll();
     scheduleList();
+  }
+
+  /* 编辑框滚动时，预览按比例跟随（用户反馈：预览不跟手） */
+  function syncScroll() {
+    if (!readEl) return;
+    var sh = srcEl.scrollHeight - srcEl.clientHeight;
+    var ratio = sh > 0 ? srcEl.scrollTop / sh : 0;
+    readEl.scrollTop = ratio * (readEl.scrollHeight - readEl.clientHeight);
   }
 
   function insertAtCaret(text) {
@@ -549,6 +561,7 @@
   });
 
   srcEl.addEventListener('input', syncFromEditor);
+  srcEl.addEventListener('scroll', syncScroll, { passive: true });
 
   srcEl.addEventListener('keydown', function (e) {
     var meta = e.metaKey || e.ctrlKey;
