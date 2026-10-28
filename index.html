@@ -1,172 +1,148 @@
+<!DOCTYPE html>
 <!--
-    MarkDown
-
-    @verson 4.2.0
+  小胡的笔记本 MarkDownPad
+  原版基于 Vue + EasyMDE；现按零依赖方案重写（原生 HTML/CSS/JS，无任何第三方库）。
+  笔记只保存在浏览器 localStorage，不发出任何网络请求。
 -->
-<html>
-    <head>
-        <title>小胡的笔记本MarkDownPad</title>
-        <meta charset="UTF-8">
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小胡的笔记本 MarkDownPad — 随手记，一键存为 .md</title>
+<meta name="description" content="左边写、右边看，多本笔记自动存在浏览器里；写完点一下就是干净的 .md 文件，也能导入已有 Markdown、一次性备份全部。可以把书签拖到书签栏，点一下在 600×600 小窗里随手记。">
+<link rel="canonical" href="https://httcup.github.io/md/">
+<meta name="theme-color" content="#f6f7f9">
+<link rel="icon" href="./icon/mdp-512.png">
+<link rel="apple-touch-icon" href="./icon/mdp-512.png">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://httcup.github.io/md/">
+<meta property="og:title" content="小胡的笔记本 MarkDownPad — 随手记，一键存为 .md">
+<meta property="og:description" content="多本笔记、实时预览、自动保存，导出就是干净的 .md。笔记只留在这台设备的浏览器里。">
+<link rel="manifest" href="mdp.webmanifest">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="nb-page">
+<a class="skip-link" href="#main">跳到主要内容</a>
 
-        <link rel="manifest" href="mdp.webmanifest">
-        <script>
-            if ('serviceWorker' in navigator) {
-                console.log('CLIENT: service worker registration in progress.')
-                navigator.serviceWorker.register('./service-worker.js')
-                .then(() => {
-                    console.log('CLIENT: service worker registration complete.')
-                },
-                () => {
-                    console.error('CLIENT: service worker registration failed.')
-                })
-            }
-            else {
-                console.warn('CLIENT: service worker not supported.')
-            }
-        </script>
-        
-        <link rel="icon" href="./icon/mdp-512.png">
+<header class="hub-head">
+  <div class="head-row">
+    <p class="brand">📓 小胡的笔记本</p>
+    <div class="head-actions">
+      <span class="bm-hint">把书签图标拖到书签栏，点一下就能在 600×600 小窗里随手记</span>
+      <a class="icon-link bookmarklet" title="把这个图标拖到书签栏，点一下即可在小窗口打开笔记本"
+        href="javascript: (function(){ window.open('https://httcup.github.io/md/', 'window', 'width=600,height=600'); })()">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1Z"/></svg>
+      </a>
+    </div>
+  </div>
+  <h1>笔记存为.md</h1>
+  <p class="lede">左边记事，右边就是最终样子；每敲一句都自动留在浏览器里。写完点「下载 .md」，得到一份直接能丢进 Obsidian、Typora 或仓库的纯文本笔记。可以开多本、导入旧文件、一次备份全部。</p>
+</header>
 
-        <!-- highlight.js -->
-        <link rel="stylesheet" href="./lib/atom-one-light.css">
-        <script src="./lib/highlight.min.js"></script>
+<main id="main" class="tool-main">
 
-        <!-- EasyMDE -->
-        <link rel="stylesheet" href="./lib/easymde.min.css">
-        <script src="./lib/easymde.min.js"></script>
+  <section class="nb-app" aria-label="Markdown 笔记本">
+    <aside class="nb-side" aria-label="笔记列表">
+      <div class="nb-side-head">
+        <button class="nb-new" id="newNote" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          新建笔记
+        </button>
+        <label class="nb-search">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.3 4.3"/></svg>
+          <input id="q" type="search" placeholder="搜索标题或内容" aria-label="搜索笔记" autocomplete="off">
+        </label>
+      </div>
+      <ul class="nb-notes" id="noteList"></ul>
+      <p class="nb-empty" id="noteEmpty" hidden>还没有匹配的笔记</p>
+      <div class="nb-side-foot">
+        <button class="nb-ghost" id="importBtn" type="button">导入 .md</button>
+        <button class="nb-ghost" id="exportAll" type="button">备份全部</button>
+        <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden>
+      </div>
+    </aside>
 
-        <!-- Vue -->
-        <script src="./lib/vue-2.6.11.js"></script>
+    <section class="nb-editor" aria-label="编辑与预览">
+      <div class="nb-bar">
+        <div class="nb-bar-toggles">
+          <button class="btn btn-icon" id="sideToggle" type="button" title="收起 / 展开左侧笔记列表" aria-pressed="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+          <button class="btn btn-icon btn-prev" id="prevToggle" type="button" title="收起 / 展开右侧实时预览" aria-pressed="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+            预览
+          </button>
+        </div>
+        <input id="title" class="nb-title" placeholder="无标题笔记" aria-label="笔记标题" autocomplete="off" spellcheck="false">
+        <span class="nb-state" id="state" aria-live="polite">已保存</span>
+        <div class="nb-actions">
+          <button class="btn btn-primary" id="download" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/></svg>
+            下载 .md
+          </button>
+          <button class="btn" id="copy" type="button">复制</button>
+          <button class="btn btn-quiet" id="remove" type="button">删除</button>
+        </div>
+      </div>
 
-        <!-- Font Awesome -->
-        <link rel="stylesheet" href="./lib/fa/css/font-awesome.min.css">
+      <div class="nb-views" role="tablist" aria-label="视图切换">
+        <button class="nb-view is-on" type="button" role="tab" aria-selected="true" data-view="write">编辑</button>
+        <button class="nb-view" type="button" role="tab" aria-selected="false" data-view="read">预览</button>
+      </div>
 
-        <!-- proprietary includes -->
-        <link rel="stylesheet" href="md.css">
-        <script src="sidb.js"></script>
-    </head>
-    <body>
-        <div id="app">
-            <div>
-                <select class="control" v-model="selected">
-                    <option v-for="pad in pads" :value="pad">{{pad}}</option>
-                </select>
-                
-                <button 
-                    title="New"
-                    class="control" 
-                    @click="addOpenModal"
-                >
-                    <i class="fa fa-plus"></i>
-                </button>
-                <button 
-                    title="Delete"
-                    class="control" 
-                    @click="toggleModal('deletemodal')" 
-                    :disabled="selected=='home'"
-                >
-                    <i class="fa fa-minus"></i>
-                </button>
-                <button 
-                    title="Rename"
-                    class="control" 
-                    @click="renameOpenModal"
-                    :disabled="selected=='home'"
-                >
-                    <i class="fa fa-pencil"></i>
-                </button>
-                <button 
-                    title="Download"
-                    class="control" 
-                    @click="downloadPad" 
-                >
-                    <i class="fa fa-download"></i>
-                </button>
-                <button 
-                    title="Upload"
-                    class="control" 
-                    @click="triggerUpload" 
-                >
-                    <i class="fa fa-upload"></i>
-                </button>
-            </div>
-            <div id="right">
-                <a href="https://httcup.github.io/x" target="_blank">
-                    <i class="fa fa-github"></i>
-                </a>
-                <a 
-                    href="javascript: (function(){ window.open('https://httcup.github.io/pad/', 'window', 'width=600,height=600'); })()"
-                    title="Drag this to your bookmarks bar to create a bookmarklet."
-                >
-                    <i class="fa fa-bookmark"></i>
-                </a>
-            </div>
-            <div id="mde-container">
-                <textarea id="mde-placeholder"></textarea>
-            </div>
+      <div class="nb-split" id="split" data-view="write">
+        <div class="nb-pane nb-write">
+          <div class="nb-tools" id="toolbar" role="toolbar" aria-label="插入 Markdown 语法">
+            <button type="button" data-md="h2" title="二级标题">H2</button>
+            <button type="button" data-md="h3" title="三级标题">H3</button>
+            <span class="nb-sep" aria-hidden="true"></span>
+            <button type="button" data-md="bold" title="粗体（⌘/Ctrl + B）"><b>B</b></button>
+            <button type="button" data-md="italic" title="斜体（⌘/Ctrl + I）"><i>I</i></button>
+            <button type="button" data-md="strike" title="删除线"><s>S</s></button>
+            <button type="button" data-md="code" title="行内代码">代码</button>
+            <span class="nb-sep" aria-hidden="true"></span>
+            <button type="button" data-md="ul" title="无序列表">列表</button>
+            <button type="button" data-md="ol" title="有序列表">编号</button>
+            <button type="button" data-md="task" title="待办清单">待办</button>
+            <button type="button" data-md="quote" title="引用">引用</button>
+            <span class="nb-sep" aria-hidden="true"></span>
+            <button type="button" data-md="link" title="链接（⌘/Ctrl + K）">链接</button>
+            <button type="button" data-md="table" title="插入表格">表格</button>
+            <button type="button" data-md="codeblock" title="代码块">代码块</button>
+            <button type="button" data-md="hr" title="分割线">分割</button>
+          </div>
+          <textarea id="src" spellcheck="false" aria-label="Markdown 正文"
+            placeholder="在这里写点什么……&#10;&#10;支持 # 标题、**粗体**、- 列表、> 引用、| 表格 |、``` 代码块 ```&#10;&#10;提示：笔记只存在当前浏览器里（不同步），换设备或清理浏览器数据前记得点「下载 .md」导出一份，建议是记完就直接下载一份。"></textarea>
+        </div>
+        <div class="nb-pane nb-read">
+          <article id="prev" class="nb-prev" aria-label="预览"></article>
+          <p class="nb-prev-empty" id="prevEmpty" hidden>还没有内容，随便写一句试试。</p>
+        </div>
+      </div>
 
-            <div id="addmodal" class="modal">
-                <div class="modal-popup">
-                    <div class="modal-title modal-blue">
-                        New pad
-                    </div>
-                    <div class="modal-content">
-                        <input id="addModalInput" v-model="newModal" type="text" @keyup.enter="addPad" @keyup.esc="toggleModal('addmodal')">
-                    </div>
-                    <div class="modal-action">
-                        <button @click="addPad" class="modal-confirm modal-blue">Confirm</button>
-                        <button @click="toggleModal('addmodal')"  class="modal-cancel">Cancel</button>
-                    </div>
-                </div>
-            </div>
+      <div class="nb-status">
+        <span id="stat">0 字 · 1 行</span>
+        <span class="nb-hint">⌘/Ctrl + S 保存 · Tab 缩进 · 笔记只存在这台设备</span>
+      </div>
+    </section>
+  </section>
 
-            <div id="deletemodal" class="modal">
-                <div class="modal-popup">
-                    <div class="modal-title modal-red">
-                        Delete pad
-                    </div>
-                    <div class="modal-content">
-                        Are you sure you want to DELETE this pad?<br>
-                        This is permanent and cannot be undone!<br>
-                    </div>
-                    <div class="modal-action">
-                        <button @click="removePad" id="dothething" class="modal-confirm modal-red">Confirm</button>
-                        <button @click="toggleModal('deletemodal')" class="modal-cancel">Cancel</button>
-                    </div>
-                </div>
-            </div>
+  <p class="nb-toast" id="toast" role="status" aria-live="polite" hidden></p>
 
-            <div id="renamemodal" class="modal">
-                <div class="modal-popup">
-                    <div class="modal-title modal-blue">
-                        Rename pad
-                    </div>
-                    <div class="modal-content">
-                        <input id="renameModalInput" v-model="renameModal" type="text" @keyup.enter="renamePad" @keyup.esc="toggleModal('renamemodal')">
-                    </div>
-                    <div class="modal-action">
-                        <button @click="renamePad" class="modal-confirm modal-blue">Confirm</button>
-                        <button @click="toggleModal('renamemodal')" class="modal-cancel">Cancel</button>
-                    </div>
-                </div>
-            </div>
+  <section class="facts" aria-label="处理方式">
+    <article class="fact"><h2>只留在本机</h2><p>笔记写进浏览器的本地存储，没有账号、没有同步、没有任何请求发出。清理浏览器站点数据会把它们一起删掉，重要的内容记得点「下载 .md」留一份文件。</p></article>
+    <article class="fact"><h2>打开就是 .md</h2><p>导出的就是纯文本 Markdown，不夹带样式和内嵌数据。Obsidian、Typora、VS Code、GitHub 都能直接打开，也能再导入回来接着改。</p></article>
+    <article class="fact"><h2>书签小窗</h2><p>把顶栏的书签图标拖到浏览器书签栏，之后在任何页面点一下这个书签，就会弹出 600×600 的小窗笔记本，随手记完关掉即可。小窗和主页面共用同一份笔记。</p></article>
+  </section>
+</main>
 
-            <div id="alertmodal" class="modal">
-                <div class="modal-popup">
-                    <div class="modal-title modal-orange">
-                        Warning
-                    </div>
-                    <div class="modal-content">
-                        {{ alertText }}
-                    </div>
-                    <div class="modal-action">
-                        <button @click="toggleModal('alertmodal')" class="modal-confirm modal-orange">OK</button>
-                    </div>
-                </div>
-            </div>
+<footer>
+  <p>零依赖、纯本地运行的 Markdown 笔记本 · <a href="https://github.com/httcup/md">GitHub 源码</a> · 更多工具见 <a href="https://httcup.github.io/tools/">本地工具箱</a></p>
+</footer>
 
-            <input id="fileUploadInput" type="file" @change="loadFile" style="display: none;" accept=".md,.txt">
-        </div> <!-- #app -->
-        <script src="md.js"></script>
-    </body>
+<script src="markdown.js"></script>
+<script src="app.js"></script>
+</body>
 </html>

@@ -1,16 +1,17 @@
 {
-    "name": "Markdownpad",
-    "short_name": "mdp",
-    "description": "Progressive Web App that lets you write notes in markdown.",
+    "name": "小胡的笔记本 MarkDownPad",
+    "short_name": "笔记本",
+    "description": "零依赖 Markdown 笔记本：多本笔记、实时预览、自动保存，一键存为 .md。",
     "icons": [
-      {
-        "src": "icon/mdp-512.png",
-        "sizes": "512x512",
-        "type": "image/png"
-      }
+        {
+            "src": "icon/mdp-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
     ],
-    "start_url": "/pad/index.html",
+    "start_url": "/md/",
+    "scope": "/md/",
     "display": "standalone",
-    "theme_color": "#2c3e50",
-    "background_color": "#FFFFFF"
-  }
+    "theme_color": "#f6f7f9",
+    "background_color": "#f6f7f9"
+}
