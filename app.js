@@ -112,7 +112,28 @@
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 60);
-    return (base || '未命名笔记') + '.md';
+    /* 文件名里不能有冒号（macOS/Windows 都不允许），时间用 - 代替 */
+    var d = new Date();
+    var ts = String(d.getFullYear()).slice(2) + '年' + (d.getMonth() + 1) + '月' + d.getDate() +
+      '日 ' + pad(d.getHours()) + '-' + pad(d.getMinutes());
+    return (base || '未命名笔记') + '-' + ts + '.md';
+  }
+
+  /* 识别「备份全部」生成的合并文件，按 --- 分隔符拆回多本笔记 */
+  function splitBackup(name, text) {
+    if (!/^笔记备份-.*\.md$/.test(name)) return null;
+    var parts = text.replace(/^\uFEFF/, '')
+      .split(/\r?\n\r?\n-{3,}\r?\n\r?\n/)
+      .map(function (s) { return s.replace(/^\s+|\s+$/g, ''); })
+      .filter(Boolean);
+    if (parts.length <= 1) return null;
+    return parts.map(function (part) {
+      var m = part.match(/^#\s+(.+)/);
+      if (m) {
+        return { title: m[1].trim(), body: part.slice(m[0].length).replace(/^\s+/, '') };
+      }
+      return { title: '', body: part };
+    });
   }
 
   function toast(msg) {
@@ -398,22 +419,37 @@
 
     Promise.all(list.map(function (f) {
       return readFile(f).then(function (text) {
-        var name = (f.name || '未命名').replace(/\.[^.]+$/, '');
-        return {
+        var name = f.name || '未命名.md';
+        /* 备份文件（笔记备份-*.md）先拆回多本笔记 */
+        var split = splitBackup(name, text);
+        if (split && split.length) {
+          return split.map(function (p) {
+            return {
+              id: uid(),
+              title: p.title,
+              body: p.body,
+              created: Date.now(),
+              updated: Date.now()
+            };
+          });
+        }
+        return [{
           id: uid(),
-          title: name,
+          title: name.replace(/\.[^.]+$/, ''),
           body: text.replace(/^\uFEFF/, ''),
           created: Date.now(),
           updated: Date.now()
-        };
+        }];
       });
-    })).then(function (notes) {
+    })).then(function (groups) {
+      var notes = [];
+      groups.forEach(function (g) { notes = notes.concat(g); });
       notes.forEach(function (n) { data.notes.push(n); });
       data.cur = notes[0].id;
       qEl.value = '';
       paint();
       persist();
-      toast('已导入 ' + notes.length + ' 个文件');
+      toast('已导入 ' + notes.length + ' 篇笔记');
     }).catch(function () {
       toast('读取失败，换一个文件试试');
     });
